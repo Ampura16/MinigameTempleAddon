@@ -1,0 +1,4 @@
+name: MinigamesTemplateAddon
+version: '${version}'
+main: top.brmc.ampura16.minigamestemplateaddon.MinigamesTemplateAddonMain
+api-version: '1.21'
