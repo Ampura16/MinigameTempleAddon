@@ -8,124 +8,110 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import top.brmc.ampura16.minigamestemplateaddon.MinigamesTemplateAddonMain;
 import top.brmc.ampura16.minigamestemplateaddon.event.ThunderEnderSpawnEvent;
 import top.brmc.ampura16.minigamestemplateaddon.mobs.ThunderEnder;
 
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 
 public class ThunderEnderSpawnListener implements Listener {
 
-    private final Set<Location> targetBlocks = new HashSet<>();
+    String listenerName = ChatColor.LIGHT_PURPLE + "[ThunderEnderSpawnEvent] ";
+    private final World targetWorld;
+    private final Location targetBlock1;
+    private final Location targetBlock2;
+    private final Location spawnLocation;
     private final Set<Location> brokenBlocks = new HashSet<>();
-    private final JavaPlugin plugin;
     private boolean isSequenceActive = false;
-    String listenerName = ChatColor.LIGHT_PURPLE + "[TunderEnderSpawnEvent] ";
+    private long lastBreakTime = 0;
+    private static final long COOLDOWN_MS = 5000;
 
-    public ThunderEnderSpawnListener(JavaPlugin plugin) {
-        this.plugin = plugin;
-        World world = plugin.getServer().getWorld("world");
-        if (world != null) {
-            targetBlocks.add(new Location(world, 221, 73, -277));
-            targetBlocks.add(new Location(world, 221, 73, -281));
-        }
+    public ThunderEnderSpawnListener(MinigamesTemplateAddonMain plugin) {
+        this.targetWorld = plugin.getServer().getWorld("world");
+        this.targetBlock1 = new Location(targetWorld, 341, 63, -244);
+        this.targetBlock2 = new Location(targetWorld, 341, 63, -240);
+        this.spawnLocation = new Location(targetWorld, 341, 64, -242);
     }
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
+        if (isSequenceActive) return;
+
         Location brokenLoc = event.getBlock().getLocation();
+        if (!isTargetBlock(brokenLoc)) return;
 
-        if (!targetBlocks.contains(brokenLoc)) {
+        if (System.currentTimeMillis() - lastBreakTime > COOLDOWN_MS) {
             brokenBlocks.clear();
-            return;
         }
-
-        if (isSequenceActive) {
-            return;
-        }
+        lastBreakTime = System.currentTimeMillis();
 
         brokenBlocks.add(brokenLoc);
-        Player player = event.getPlayer();
-
-        player.sendMessage(ChatColor.DARK_RED + "⚡ 目标方块被破坏 " + brokenBlocks.size() + "/2");
-
-        if (brokenBlocks.size() == targetBlocks.size()) {
-            // player.sendMessage(ChatColor.DARK_RED + "警告!雷霆之力正在聚集...");
-            isSequenceActive = true;
-
-            Location spawnLoc = new Location(brokenLoc.getWorld(), 221, 73, -279);
-            setThunderWeather(spawnLoc);
-
-            // 5秒后开始闪电序列
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    startLightningSequence(spawnLoc);
-                }
-            }.runTaskLater(plugin, 100); // 5秒 = 100 ticks
-        }
+        event.getPlayer().sendMessage(ChatColor.RED + "(" + brokenBlocks.size() + "/2)");
+        checkBothBlocksBroken(event.getPlayer());
     }
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         Location placedLoc = event.getBlock().getLocation();
-        if (targetBlocks.contains(placedLoc)) {
+        if (isTargetBlock(placedLoc)) {
             brokenBlocks.remove(placedLoc);
             isSequenceActive = false;
-            // 移除了天气恢复代码
         }
     }
 
-    private void setThunderWeather(Location location) {
-        World world = location.getWorld();
-        world.setStorm(true);
-        world.setThundering(true);
-        world.setWeatherDuration(20 * 60 * 5); // 5分钟雷暴
-        world.playSound(location, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.8f);
+    private boolean isTargetBlock(Location loc) {
+        return loc.equals(targetBlock1) || loc.equals(targetBlock2);
     }
 
-    private void startLightningSequence(Location location) {
+    private void checkBothBlocksBroken(Player player) {
+        if (brokenBlocks.contains(targetBlock1) &&
+                brokenBlocks.contains(targetBlock2) &&
+                System.currentTimeMillis() - lastBreakTime <= COOLDOWN_MS) {
+            startSummoningSequence(player);
+        }
+    }
+
+    private void startSummoningSequence(Player player) {
+        isSequenceActive = true;
+        setThunderWeather();
+
+        // 保留事件调用提示
+        ThunderEnderSpawnEvent event = new ThunderEnderSpawnEvent(targetWorld, spawnLocation.clone());
+        Bukkit.getPluginManager().callEvent(event);
+        player.sendMessage(listenerName + ChatColor.GOLD + "已调用.");
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                startLightningSequence();
+            }
+        }.runTaskLater(JavaPlugin.getPlugin(MinigamesTemplateAddonMain.class), 100);
+    }
+
+    private void setThunderWeather() {
+        targetWorld.setStorm(true);
+        targetWorld.setThundering(true);
+        targetWorld.setWeatherDuration(20 * 60 * 5);
+        targetWorld.playSound(spawnLocation, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.8f);
+    }
+
+    private void startLightningSequence() {
         new BukkitRunnable() {
             int count = 0;
 
             @Override
             public void run() {
-                if (count < 3) { // 3道闪电
-                    Objects.requireNonNull(location.getWorld()).strikeLightningEffect(location);
+                if (count < 3) {
+                    targetWorld.strikeLightningEffect(spawnLocation);
                     count++;
                 } else {
-                    // 触发事件
-                    ThunderEnderSpawnEvent tesEvent = new ThunderEnderSpawnEvent(
-                            location.getWorld(),
-                            location.clone()
-                    );
-                    Bukkit.getPluginManager().callEvent(tesEvent);
-                    // 生成Boss
-                    ThunderEnder.spawn(location);
-
-                    // 事件调用提示
-                    Bukkit.getOnlinePlayers().forEach(player ->
-                            player.sendMessage(listenerName + ChatColor.GOLD + "已调用.")
-                    );
-
-                    // 发送提示
-                    location.getWorld().getPlayers().forEach(p -> {
-                        if (p.getLocation().distance(location) < 50) {
-                            /**
-                            p.sendTitle(
-                                    "§5⚡ 雷霆终结者 ⚡",
-                                    "§c已在雷暴中降临！",
-                                    10, 70, 20
-                            );
-                             */
-                        }
-                    });
+                    ThunderEnder.spawn(spawnLocation);
                     brokenBlocks.clear();
                     isSequenceActive = false;
                     cancel();
                 }
             }
-        }.runTaskTimer(plugin, 0, 20); // 每1秒一次
+        }.runTaskTimer(JavaPlugin.getPlugin(MinigamesTemplateAddonMain.class), 0, 20);
     }
 }

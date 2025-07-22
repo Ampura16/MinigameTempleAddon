@@ -1,4 +1,0 @@
-name: MinigamesTemplateAddon
-version: '1.0-SNAPSHOT'
-main: top.brmc.ampura16.minigamestemplateaddon.MinigamesTemplateAddonMain
-api-version: '1.21'
