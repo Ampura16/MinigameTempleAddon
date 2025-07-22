@@ -1,8 +1,7 @@
 package top.brmc.ampura16.minigamestemplateaddon;
 
 import org.bukkit.plugin.java.JavaPlugin;
-import top.brmc.ampura16.minigamestemplateaddon.listener.TunderEnderSpawnEventListener;
-import top.brmc.ampura16.minigamestemplateaddon.triggers.TunderEnderSpawnListener;
+import top.brmc.ampura16.minigamestemplateaddon.listener.ThunderEnderSpawnListener;
 import top.brmc.ampura16.minigamestemplateaddon.triggers.ExamplePlaceBlockTrigger;
 
 public final class MinigamesTemplateAddonMain extends JavaPlugin {
@@ -21,11 +20,10 @@ public final class MinigamesTemplateAddonMain extends JavaPlugin {
 
     private void registerEvents() {
         getServer().getPluginManager().registerEvents(new ExamplePlaceBlockTrigger(), this);
-        getServer().getPluginManager().registerEvents(new TunderEnderSpawnListener(), this);
         getServer().getPluginManager().registerEvents(new TempleMethod(), this);
     }
 
     private void registerListeners() {
-        getServer().getPluginManager().registerEvents(new TunderEnderSpawnEventListener(), this);
+        getServer().getPluginManager().registerEvents(new ThunderEnderSpawnListener(this), this);
     }
 }
